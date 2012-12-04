@@ -21,6 +21,51 @@ app.configure(function(){
 // start the server
 server.listen(3232);
 
+// process area response
+var processAreaData = function(res) {
+
+    var normalizedData = {};
+    normalizedData.areas = [];
+    $ = cheerio.load(res);
+
+    // parse the tables for content
+    var rows = $('table.centerElement').find('tr').filter( function() {
+        if( ($(this).attr('bgcolor') == '#ffffff') || ($(this).attr('bgcolor') == '#f2f2f2') ) {
+            return $(this);
+        }
+    });
+
+    $(rows).each(function(idx, tr) {
+
+        var link = '';
+        var name = '';
+        var area_location = [];
+
+        var anchor = $(tr).find('a');
+        var loc = $(tr).find('p.small > a');
+
+        // area result <td>'s
+        if(3 == tr.children.length) {
+
+            link = 'http://www.mountainproject.com' + $(anchor).attr('href');
+            name = $(anchor).html();
+
+            $(loc).each(function(loc_idx, obj) {
+                area_location.push({"link": $(obj).attr('href'), "name": $(obj).html()});
+            });
+
+            normalizedData.areas.push({
+                "link": link, 
+                "crag_name": name, 
+                "location": area_location
+            });
+
+        }
+    });
+
+    return normalizedData;
+}
+
 // process route response
 var processRouteData = function(res) {
 
@@ -34,8 +79,6 @@ var processRouteData = function(res) {
             return $(this);
          }
     });
-
-    if(!rows) { console.log('rows empty'); }
 
     // parse the rows for data cells
     $(rows).each(function(idx, tr) {
@@ -56,7 +99,7 @@ var processRouteData = function(res) {
         var type = $(tr).find('p.small');
         var loc = $(tr).find('p.small > a');
 
-        // route results <td>'
+        // route results <td>'s
         if(5 == tr.children.length) {
 
             link = 'http://www.mountainproject.com' + $(anchor).attr('href');
@@ -104,7 +147,7 @@ app.get('/route', function(req, res) {
     var options = {
         host: 'mountainproject.com',
         port: 80,
-        path: '/scripts/Search.php?query='+route+'&Submit=Search&SearchSet=ROUTES',
+        path: '/scripts/Search.php?query='+encodeURIComponent(route)+'&Submit=Search&SearchSet=ROUTES',
         method: 'GET'
     };
 
@@ -131,5 +174,37 @@ app.get('/route', function(req, res) {
 // request a crag
 app.get('/crag', function(req, res) {
 
+    var area    = req.param('crag_name') || '';
+    var callback = req.param('callback') || '';
+    if(!area) {
+        res.write('{"error" : "Provide area name."}');
+        res.end();
+    }
+
+    var options = {
+        host: 'mountainproject.com',
+        port: 80,
+        path: '/scripts/Search.php?query='+encodeURIComponent(area)+'&Submit=Search&SearchSet=AREAS',
+        method: 'GET'
+    };
+
+    var req = http.get(options, function(r) {
+
+        var pageData = "";
+        r.setEncoding('utf8');
+        r.on('data', function (chunk) {
+            pageData += chunk;
+        });
+
+        r.on('end', function() {
+            res.writeHead(200, {"Content-Type" : "application/json"});
+            if(callback) {
+                res.write(callback+'('+JSON.stringify(processAreaData(pageData))+');');
+            } else {
+                res.write(JSON.stringify(processAreaData(pageData)));
+            }
+            res.end();    
+        });
+    });
 });
 console.log("Express server listening on port " + 3232);

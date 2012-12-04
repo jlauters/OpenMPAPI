@@ -43,6 +43,9 @@ var processRouteData = function(res) {
         var link  = '';
         var name  = '';
         var grade = '';
+        var stars = 0;
+        var style = '';
+        var route_location = [];
 
         var anchor = $(tr).find('a');
         var rating = $(tr).find('td').filter(function() {
@@ -50,23 +53,37 @@ var processRouteData = function(res) {
                 return $(this).html();
             }
         });
+        var type = $(tr).find('p.small');
+        var loc = $(tr).find('p.small > a');
 
-
-
-        // route results <td>'s
+        // route results <td>'
         if(5 == tr.children.length) {
-
-            // child[2] == rating / grade
-            // child[3] == type / num_pitches / length
-            // child[4] == location
-
-            
 
             link = 'http://www.mountainproject.com' + $(anchor).attr('href');
             name = $(anchor).html();
-            grade = rating[0].children[0].children[0].data
+            grade = rating[0].children[0].children[0].data;
 
-            normalizedData.routes.push({"link": link, "route_name": name, "grade": grade});
+            // .. little messy
+            if(undefined !== rating[0].children[0].children[2]) {
+                stars = rating[0].children[0].children[2].children[0].data;
+                star_parts = stars.split('starsHtml');
+                num_parts = star_parts[1].split(',');
+                stars = num_parts[0].replace('(', '');
+                style = type[0].children[0].data;
+            }
+
+            $(loc).each(function(loc_idx, obj) {
+                route_location.push({"link": $(obj).attr('href'), "name": $(obj).html()});
+            });
+
+            normalizedData.routes.push({
+                "link": link, 
+                "route_name": name, 
+                "grade": grade, 
+                "stars": stars,
+                "style": style,
+                "location": route_location
+            });
         }
 
     });
